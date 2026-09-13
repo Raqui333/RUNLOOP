@@ -1,0 +1,26 @@
+appId: com.runloop.game
+productName: RUNLOOP
+
+directories:
+  output: release
+
+files:
+  - out/**
+  - electron/**
+  - build/icon.png
+  - "!node_modules/**"
+
+asar: true
+npmRebuild: false
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Game
+  executableName: runloop
+  maintainer: "raqui <raqui@localhost>"
+  synopsis: Incremental infrastructure game
+  description: >
+    An idle/incremental game about building and scaling an absurdly powerful
+    compute system. Start as a single compiler, grow into global infrastructure.

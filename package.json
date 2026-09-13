@@ -1,7 +1,8 @@
 {
-  "name": "test_idle",
+  "name": "runloop",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -9,7 +10,11 @@
     "lint": "eslint",
     "test:engine": "tsx scripts/smoke.ts",
     "test:store": "tsx scripts/store-smoke.ts",
-    "test": "npm run test:engine && npm run test:store"
+    "test": "npm run test:engine && npm run test:store",
+    "desktop:dev": "node scripts/desktop-dev.mjs",
+    "desktop": "electron .",
+    "dist": "npm run build && electron-builder --linux",
+    "dist:dir": "npm run build && electron-builder --linux --dir"
   },
   "dependencies": {
     "break_infinity.js": "^2.2.0",
@@ -23,10 +28,15 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "electron": "^37.10.3",
+    "electron-builder": "^26.15.3",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "tailwindcss": "^4",
     "tsx": "^4.23.13",
     "typescript": "^5"
+  },
+  "allowScripts": {
+    "electron@37.10.3": true
   }
 }

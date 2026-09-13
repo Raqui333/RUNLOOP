@@ -108,14 +108,14 @@ export interface AutoBuyerState {
 export type AutoBuyerMap = Record<string, AutoBuyerState>;
 
 export interface LogEntry {
-  id: number;
+  id: string;
   time: number;
   text: string;
   kind: LogKind;
 }
 
 export interface Toast {
-  id: number;
+  id: string;
   text: string;
   kind: ToastKind;
 }

@@ -48,6 +48,13 @@ const TICK_MS = 100;
 const SAVE_INTERVAL_MS = 30000;
 const CATCHUP_CAP_SECONDS = 86400;
 
+function uid(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 interface StoreState extends GameState {
   booted: boolean;
   view: ViewId;
@@ -55,8 +62,6 @@ interface StoreState extends GameState {
   toasts: Toast[];
   offlineInfo: OfflineInfo | null;
   lastTickAt: number;
-  logSeq: number;
-  toastSeq: number;
 
   boot: () => void;
   tick: (now: number) => void;
@@ -65,7 +70,7 @@ interface StoreState extends GameState {
   setView: (view: ViewId) => void;
   pushLog: (text: string, kind?: LogKind) => void;
   pushToast: (text: string, kind?: ToastKind) => void;
-  dismissToast: (id: number) => void;
+  dismissToast: (id: string) => void;
   toggleLogLevel: () => void;
   hardReset: () => void;
   actImportSave: (imported: GameState) => void;
@@ -108,9 +113,9 @@ function cloneGame(s: GameState): GameState {
 
 function greetingLogs(now: number): LogEntry[] {
   return [
-    { id: 1, time: now, text: "SYSTEM ONLINE — kernel booted", kind: "debug" },
-    { id: 2, time: now, text: "Running first build pipeline", kind: "info" },
-    { id: 3, time: now, text: "Tip: deploy Compile Cores to generate cycles.", kind: "info" },
+    { id: uid(), time: now, text: "SYSTEM ONLINE — kernel booted", kind: "debug" },
+    { id: uid(), time: now, text: "Running first build pipeline", kind: "info" },
+    { id: uid(), time: now, text: "Tip: deploy Compile Cores to generate cycles.", kind: "info" },
   ];
 }
 
@@ -183,8 +188,6 @@ export const useGame = create<StoreState>((set, get) => {
     toasts: [],
     offlineInfo: null,
     lastTickAt: 0,
-    logSeq: 3,
-    toastSeq: 0,
 
     boot: () => {
       if (get().booted) return;
@@ -232,33 +235,32 @@ export const useGame = create<StoreState>((set, get) => {
       for (const m of MILESTONES) {
         if (!announcedMilestones.has(m.id) && m.check(game)) {
           announcedMilestones.add(m.id);
-          newMilestones.push({ id: 0, time: now, text: `[MILESTONE] ${m.label}`, kind: "success" });
+          newMilestones.push({ id: uid(), time: now, text: `[MILESTONE] ${m.label}`, kind: "success" });
         }
       }
 
       if (s.settings.logLevel === "detailed" || autoPurchases > 0 || newMilestones.length > 0) {
         const entries = [...s.logs];
-        let nextId = s.logSeq;
         const prevBoundary = Math.floor((game.stats.runtimeSeconds - dt) / 90);
         const curBoundary = Math.floor(game.stats.runtimeSeconds / 90);
         if (curBoundary > prevBoundary) {
-          entries.push({ id: nextId++, time: now, text: pickHeartbeat(game), kind: "debug" });
+          entries.push({ id: uid(), time: now, text: pickHeartbeat(game), kind: "debug" });
         }
         if (autoPurchases > 0) {
           entries.push({
-            id: nextId++,
+            id: uid(),
             time: now,
             text: `Autoscaling: allocated ${autoPurchases} new instance${autoPurchases > 1 ? "s" : ""}`,
             kind: "info",
           });
         }
         for (const entry of newMilestones) {
-          entries.push({ ...entry, id: nextId++ });
+          entries.push(entry);
         }
         if (newMilestones.length > 0) {
           const baseToasts = [...s.toasts.slice(-2)];
-          newToasts = newMilestones.map((m, i) => ({
-            id: s.toastSeq + i,
+          newToasts = newMilestones.map((m) => ({
+            id: uid(),
             text: `Milestone: ${m.text.replace("[MILESTONE] ", "")}`,
             kind: "success",
           }));
@@ -269,8 +271,6 @@ export const useGame = create<StoreState>((set, get) => {
           ...game,
           logs: entries.slice(-200),
           toasts: newMilestones.length > 0 ? newToasts : s.toasts,
-          logSeq: nextId,
-          toastSeq: s.toastSeq + newMilestones.length,
           lastTickAt: now,
         });
       } else {
@@ -295,7 +295,7 @@ export const useGame = create<StoreState>((set, get) => {
         if (!announcedMilestones.has(m.id) && m.check(game)) {
           announcedMilestones.add(m.id);
           milestoneEntries.push({
-            id: 0,
+            id: uid(),
             time: now,
             text: `[MILESTONE] ${m.label}`,
             kind: "success",
@@ -304,18 +304,17 @@ export const useGame = create<StoreState>((set, get) => {
       }
       if (milestoneEntries.length > 0) {
         const entries = [...s.logs];
-        let nextId = s.logSeq;
-        for (const entry of milestoneEntries) entries.push({ ...entry, id: nextId++ });
+        for (const entry of milestoneEntries) entries.push(entry);
         const baseToasts = [...s.toasts.slice(-2)];
         const newToasts = [
           ...baseToasts,
-          ...milestoneEntries.map((m, i) => ({
-            id: s.toastSeq + i,
+          ...milestoneEntries.map((m) => ({
+            id: uid(),
             text: `Milestone: ${m.text.replace("[MILESTONE] ", "")}`,
             kind: "success" as const,
           })),
         ].slice(-3);
-        set({ ...s, ...game, logs: entries.slice(-200), toasts: newToasts, logSeq: nextId, toastSeq: s.toastSeq + milestoneEntries.length, lastTickAt: now });
+        set({ ...s, ...game, logs: entries.slice(-200), toasts: newToasts, lastTickAt: now });
       } else {
         set({ ...s, ...game, lastTickAt: now });
       }
@@ -337,14 +336,12 @@ export const useGame = create<StoreState>((set, get) => {
 
     pushLog: (text, kind = "info") =>
       set((s) => ({
-        logs: [...s.logs.slice(-199), { id: s.logSeq, time: Date.now(), text, kind }],
-        logSeq: s.logSeq + 1,
+        logs: [...s.logs.slice(-199), { id: uid(), time: Date.now(), text, kind }],
       })),
 
     pushToast: (text, kind = "info") =>
       set((s) => ({
-        toasts: [...s.toasts.slice(-2), { id: s.toastSeq, text, kind }],
-        toastSeq: s.toastSeq + 1,
+        toasts: [...s.toasts.slice(-2), { id: uid(), text, kind }],
       })),
 
     dismissToast: (id) =>

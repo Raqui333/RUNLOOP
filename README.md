@@ -13,6 +13,10 @@
 </p>
 
 <p align="center">
+  <img src="docs/research-page.png" alt="RUNLOOP research page screenshot" width="800" />
+</p>
+
+<p align="center">
   <img src="docs/refactor-page.png" alt="RUNLOOP refactor page screenshot" width="800" />
 </p>
 

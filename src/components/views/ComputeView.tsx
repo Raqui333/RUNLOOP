@@ -11,14 +11,7 @@ export function ComputeView() {
   const state = useGame();
   const production = computeProduction(state);
 
-  const ordered = [...GENERATORS].sort((a, b) => {
-    const au = isGeneratorUnlocked(state, a);
-    const bu = isGeneratorUnlocked(state, b);
-    if (au !== bu) return au ? -1 : 1;
-    const ac = state.generators[a.id] ?? 0;
-    const bc = state.generators[b.id] ?? 0;
-    return bc - ac || GENERATORS.indexOf(a) - GENERATORS.indexOf(b);
-  });
+  const ordered = [...GENERATORS];
 
   const specsLocked = ordered.filter((g) => !isGeneratorUnlocked(state, g)).length;
 

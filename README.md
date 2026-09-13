@@ -28,8 +28,8 @@
 - **10 procedural generators**, from *Compile Core* to *Inference Cluster* (CPU, Build Server, GPU Array, Sharded Database, API Gateway, Cluster Orchestrator, Regional Datacenter, Cloud Region…). Costs and production grow exponentially with level.
 - **Repeatable upgrades** (Optimization Stack, PGO Compiler, Prefetch, Speculative Branch toggles…) and **one-time breakthroughs** (Monorepo, Edge Gateways, Serverless Fabric…) multiply production.
 - **Research tree** (~33 nodes) unlocks multipliers, workers, servers, autoscaling and offline-efficiency bonuses.
-- **Workers** give +10% production each; **auto-buyers** (autopilot) automate generator purchases once the *Autoscale* research is unlocked.
-- **Manual deploy** button: clicking executes a build, instantly banking `production × 5` cycles (further multiplied by click-related research).
+- **Workers** give +8% production each (boosted by research); **auto-buyers** (autopilot) automate generator purchases once the *Autoscale* research is unlocked.
+- **Manual deploy** button: clicking executes a build, instantly banking `production × 4` cycles (further multiplied by click-related research).
 - **Metrics panel**: a dedicated telemetry view with production composition by generator, a live multiplier stack (upgrades/breakthroughs/research/workers/architecture), lifetime stats (peak throughput, deploys, offline cycles earned) and a refactor-projection forecast.
 - **Event-driven system log**: generator deploys, overclocks, worker joins, breakthroughs, upgrade milestones and offline restores are all streamed to a log that shifts tone as you scale tiers.
 - **Refactor (prestige)**: past `1M` run cycles you can reset current infrastructure to gain **Architecture Points**, then specialize into **Performance**, **Reliability** or **Automation** for permanent, compounding bonuses.

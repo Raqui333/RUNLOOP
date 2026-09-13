@@ -195,7 +195,7 @@ export function RefactorView() {
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <BonusStat
             label="Performance"
-            value={formatPercent(0.05 * (state.prestige.specs.performance ?? 0), 1)}
+            value={formatPercent(0.04 * (state.prestige.specs.performance ?? 0), 1)}
           />
           <BonusStat
             label="Offline efficiency"

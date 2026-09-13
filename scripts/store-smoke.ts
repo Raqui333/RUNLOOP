@@ -44,10 +44,10 @@ async function main() {
 
 // Tick advances production (clicker funds the first generator)
 {
-  for (let i = 0; i < 12; i++) useGame.getState().actExecuteBuild();
+  for (let i = 0; i < 40; i++) useGame.getState().actExecuteBuild();
   useGame.getState().actBuyGenerator("compileCore");
   const st = useGame.getState();
-  assert.strictEqual(st.resources.cycles.toNumber(), 0, "first core consumes the 12 clicked cycles");
+  assert.strictEqual(st.resources.cycles.toNumber(), 0, "first core consumes the 40 clicked cycles");
   const before = st.resources.cycles.toNumber();
   const now = Date.now();
   useGame.getState().tick(now + 100);
@@ -70,7 +70,7 @@ async function main() {
   const s = useGame.getState();
   assert.ok(s.offlineInfo, "offline session detected");
   assert.ok(s.offlineInfo.seconds > 30000, "elapsed captured");
-  assert.ok(Math.abs(s.offlineInfo.gained.toNumber() - 12 * 36000) < 20, "gained ~ production*elapsed");
+  assert.ok(Math.abs(s.offlineInfo.gained.toNumber() - 4 * 36000) < 20, "gained ~ production*elapsed");
   ok("offline production computed deterministically");
 }
 
@@ -86,7 +86,7 @@ async function main() {
     s.logs.some((l) => l.text.includes("CHALLENGE")),
     "challenge logged",
   );
-  useGame.setState({ totals: { ...s.totals, runCycles: new Decimal(2e6) } });
+  useGame.setState({ totals: { ...s.totals, runCycles: new Decimal(5e6) } });
   useGame.getState().actSolveChallenge();
   s = useGame.getState();
   assert.strictEqual(s.activeChallenge, null, "challenge resolved");

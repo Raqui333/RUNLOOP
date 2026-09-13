@@ -35,9 +35,9 @@ import { toDecimal } from "./numbers";
 
 export type BuyResult = "ok" | "poor" | "locked" | "dup";
 
-const MODULE_EFFECT = 0.15;
-const WORKER_BASE_EFFICIENCY = 0.1;
-const REFACTOR_EFFORT_BONUS = 0.01;
+const MODULE_EFFECT = 0.12;
+const WORKER_BASE_EFFICIENCY = 0.08;
+const REFACTOR_EFFORT_BONUS = 0.008;
 
 export function getActiveChallenge(state: GameState): ChallengeDef | null {
   if (!state.activeChallenge) return null;
@@ -129,12 +129,12 @@ export function offlineEfficiency(state: GameState): number {
       pct += def.effect.value;
     }
   }
-  pct += 0.03 * state.prestige.specs.reliability;
+  pct += 0.02 * state.prestige.specs.reliability;
   return 1 + pct;
 }
 
 export function automationSpeed(state: GameState): number {
-  return 1 + 0.05 * state.prestige.specs.automation;
+  return 1 + 0.04 * state.prestige.specs.automation;
 }
 
 export function computeProduction(state: GameState): Decimal {
@@ -170,7 +170,7 @@ export function computeProduction(state: GameState): Decimal {
   if (!mod?.disableWorkers) {
     mul = mul.times(1 + workerEfficiency(state) * (state.workers ?? 0));
   }
-  mul = mul.times(1 + 0.05 * state.prestige.specs.performance);
+  mul = mul.times(1 + 0.04 * state.prestige.specs.performance);
   mul = mul.times(1 + REFACTOR_EFFORT_BONUS * state.prestige.refactors);
   mul = mul.times(challengeRewardMultiplier(state));
   if (mod?.prodMul != null) mul = mul.times(mod.prodMul);
@@ -218,7 +218,7 @@ export function getMultiplierStack(state: GameState): MultiplierEntry[] {
   const researchCount = RESEARCH.filter((r) => state.research[r.id]).length;
   const workersMul = new Decimal(1 + workerEfficiency(state) * (state.workers ?? 0));
   const perfLevel = state.prestige.specs.performance ?? 0;
-  const specsMul = new Decimal(1 + 0.05 * perfLevel);
+  const specsMul = new Decimal(1 + 0.04 * perfLevel);
   const refactorMul = new Decimal(1 + REFACTOR_EFFORT_BONUS * (state.prestige.refactors ?? 0));
 
   const candidates: MultiplierEntry[] = [
@@ -260,14 +260,14 @@ export function upgradeLevelsTotal(state: GameState, includeModules = true): num
 }
 
 export function buildGain(state: GameState): Decimal {
-  return computeProduction(state).times(5).plus(1).times(clickBonus(state));
+  return computeProduction(state).times(4).plus(1).times(clickBonus(state));
 }
 
 export function getRefactorGain(state: GameState): Decimal {
   if (getActiveChallenge(state)) return new Decimal(0);
   const run = state.totals.runCycles;
   if (run.lt(REFACTOR_THRESHOLD)) return new Decimal(0);
-  return run.div(REFACTOR_THRESHOLD).pow(0.6).floor();
+  return run.div(REFACTOR_THRESHOLD).pow(0.5).floor();
 }
 
 export function applyProduction(state: GameState, dtSeconds: number): void {

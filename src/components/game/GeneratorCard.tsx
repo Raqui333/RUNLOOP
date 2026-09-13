@@ -88,9 +88,9 @@ export function GeneratorCard({ gen }: { gen: GeneratorDef }) {
               variant="ghost"
               disabled={!balance.gte(moduleCostValue)}
               onClick={() => useGame.getState().actBuyModule(gen.id)}
-              title="Overclock: +15% production of this generator per level"
+              title="Overclock: +12% production of this generator per level"
             >
-              Mod +15%
+              Mod +12%
               <span className="text-muted">{formatNumber(moduleCostValue)}</span>
             </Button>
           )}

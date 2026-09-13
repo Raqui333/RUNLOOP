@@ -15,6 +15,7 @@ import type {
 import { createInitialState } from "./state";
 import { loadGame, saveGame, clearGame } from "./save";
 import {
+  abandonChallenge,
   applyOfflineGain,
   applyProduction,
   build,
@@ -26,11 +27,22 @@ import {
   buyWorker,
   buySpec,
   computeOfflineGain,
+  computeProduction,
   processAutoBuyers,
   processRefactor,
+  processSolveChallenge,
   setAutoBuyer as engineSetAutoBuyer,
+  startChallenge,
 } from "./engine";
-import { formatClock } from "./numbers";
+import {
+  BREAKTHROUGH_BY_ID,
+  CHALLENGE_BY_ID,
+  GENERATOR_BY_ID,
+  UPGRADE_BY_ID,
+  MILESTONES,
+  getScaleIndex,
+} from "./economy";
+import { formatClock, formatNumber, formatPercent } from "./numbers";
 
 const TICK_MS = 100;
 const SAVE_INTERVAL_MS = 30000;
@@ -56,6 +68,7 @@ interface StoreState extends GameState {
   dismissToast: (id: number) => void;
   toggleLogLevel: () => void;
   hardReset: () => void;
+  actImportSave: (imported: GameState) => void;
 
   actBuyGenerator: (id: string) => void;
   actBuyModule: (id: string) => void;
@@ -66,6 +79,9 @@ interface StoreState extends GameState {
   actExecuteBuild: () => void;
   actRefactor: () => void;
   actBuySpec: (id: SpecId) => void;
+  actStartChallenge: (id: string) => void;
+  actSolveChallenge: () => void;
+  actAbandonChallenge: () => void;
   actSetAutoBuyer: (
     genId: string,
     patch: Partial<{ enabled: boolean; interval: number; budget: number }>,
@@ -83,6 +99,7 @@ function cloneGame(s: GameState): GameState {
     research: { ...s.research },
     breakthroughs: { ...s.breakthroughs },
     autoBuyers: { ...s.autoBuyers },
+    challenges: { ...s.challenges },
     prestige: { ...s.prestige, specs: { ...s.prestige.specs } },
     stats: { ...s.stats },
     settings: { ...s.settings },
@@ -97,14 +114,46 @@ function greetingLogs(now: number): LogEntry[] {
   ];
 }
 
-const HEARTBEAT_LOG_POOL = [
-  "Cache hit ratio: 94.2%",
-  "Replica lag: 3ms",
-  "Telemetry pipeline flushed",
-  "Heap pressure nominal",
-  "Autoscaling check passed",
-  "Node heartbeat OK",
+const HEARTBEAT_POOLS: string[][] = [
+  [
+    "Build queue empty — waiting for jobs",
+    "Context switch overhead: 0.4%",
+    "Page cache warm, swap cold",
+    "GC pause: 2ms",
+  ],
+  [
+    "Cache hit ratio: 94.2%",
+    "Replica lag: 3ms",
+    "Hot path recompiled with fresh profiles",
+    "Heap pressure nominal",
+  ],
+  [
+    "Autoscaling check passed",
+    "Node heartbeat OK",
+    "Fabric saturation: 61%",
+    "Quorum healthy (5/5)",
+  ],
+  [
+    "Telemetry pipeline flushed",
+    "Rebalance: 12 shards moved",
+    "WAN latency to peers: 8ms",
+    "Region failover drill complete",
+  ],
+  [
+    "Global consensus round: 250ms",
+    "Self-healing pass found 0 faults",
+    "Predictive scheduler trimmed 9% idle",
+    "Inference batch served at scale",
+  ],
 ];
+
+function pickHeartbeat(state: GameState): string {
+  const idx = Math.min(4, Math.floor(getScaleIndex(computeProduction(state)) / 2));
+  const pool = HEARTBEAT_POOLS[idx];
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+const announcedMilestones = new Set<string>();
 
 export const useGame = create<StoreState>((set, get) => {
   function commit(game: GameState): void {
@@ -152,6 +201,10 @@ export const useGame = create<StoreState>((set, get) => {
         offlineInfo = { seconds: elapsed, gained, efficiency };
       }
 
+      for (const m of MILESTONES) {
+        if (m.check(loaded)) announcedMilestones.add(m.id);
+      }
+
       set({
         ...loaded,
         booted: true,
@@ -171,16 +224,25 @@ export const useGame = create<StoreState>((set, get) => {
       const autoPurchases = processAutoBuyers(game, dt * 1000);
       game.stats.runtimeSeconds = (game.stats.runtimeSeconds ?? 0) + dt;
       game.lastSave = now;
+      const prod = computeProduction(game);
+      if (prod.gt(game.stats.peakProduction)) game.stats.peakProduction = prod;
 
-      if (s.settings.logLevel === "detailed" || autoPurchases > 0) {
+      const newMilestones: LogEntry[] = [];
+      let newToasts: Toast[] = [];
+      for (const m of MILESTONES) {
+        if (!announcedMilestones.has(m.id) && m.check(game)) {
+          announcedMilestones.add(m.id);
+          newMilestones.push({ id: 0, time: now, text: `[MILESTONE] ${m.label}`, kind: "success" });
+        }
+      }
+
+      if (s.settings.logLevel === "detailed" || autoPurchases > 0 || newMilestones.length > 0) {
         const entries = [...s.logs];
         let nextId = s.logSeq;
         const prevBoundary = Math.floor((game.stats.runtimeSeconds - dt) / 90);
         const curBoundary = Math.floor(game.stats.runtimeSeconds / 90);
         if (curBoundary > prevBoundary) {
-          const pool = HEARTBEAT_LOG_POOL;
-          const text = pool[Math.floor(Math.random() * pool.length)];
-          entries.push({ id: nextId++, time: now, text, kind: "debug" });
+          entries.push({ id: nextId++, time: now, text: pickHeartbeat(game), kind: "debug" });
         }
         if (autoPurchases > 0) {
           entries.push({
@@ -190,11 +252,25 @@ export const useGame = create<StoreState>((set, get) => {
             kind: "info",
           });
         }
+        for (const entry of newMilestones) {
+          entries.push({ ...entry, id: nextId++ });
+        }
+        if (newMilestones.length > 0) {
+          const baseToasts = [...s.toasts.slice(-2)];
+          newToasts = newMilestones.map((m, i) => ({
+            id: s.toastSeq + i,
+            text: `Milestone: ${m.text.replace("[MILESTONE] ", "")}`,
+            kind: "success",
+          }));
+          newToasts = [...baseToasts.slice(-(2 - newMilestones.length)), ...newToasts];
+        }
         set({
           ...s,
           ...game,
           logs: entries.slice(-200),
+          toasts: newMilestones.length > 0 ? newToasts : s.toasts,
           logSeq: nextId,
+          toastSeq: s.toastSeq + newMilestones.length,
           lastTickAt: now,
         });
       } else {
@@ -211,11 +287,51 @@ export const useGame = create<StoreState>((set, get) => {
       processAutoBuyers(game, elapsed * 1000);
       game.stats.runtimeSeconds = (game.stats.runtimeSeconds ?? 0) + elapsed;
       game.lastSave = now;
-      set({ ...s, ...game, lastTickAt: now });
+      const prod = computeProduction(game);
+      if (prod.gt(game.stats.peakProduction)) game.stats.peakProduction = prod;
+
+      const milestoneEntries: LogEntry[] = [];
+      for (const m of MILESTONES) {
+        if (!announcedMilestones.has(m.id) && m.check(game)) {
+          announcedMilestones.add(m.id);
+          milestoneEntries.push({
+            id: 0,
+            time: now,
+            text: `[MILESTONE] ${m.label}`,
+            kind: "success",
+          });
+        }
+      }
+      if (milestoneEntries.length > 0) {
+        const entries = [...s.logs];
+        let nextId = s.logSeq;
+        for (const entry of milestoneEntries) entries.push({ ...entry, id: nextId++ });
+        const baseToasts = [...s.toasts.slice(-2)];
+        const newToasts = [
+          ...baseToasts,
+          ...milestoneEntries.map((m, i) => ({
+            id: s.toastSeq + i,
+            text: `Milestone: ${m.text.replace("[MILESTONE] ", "")}`,
+            kind: "success" as const,
+          })),
+        ].slice(-3);
+        set({ ...s, ...game, logs: entries.slice(-200), toasts: newToasts, logSeq: nextId, toastSeq: s.toastSeq + milestoneEntries.length, lastTickAt: now });
+      } else {
+        set({ ...s, ...game, lastTickAt: now });
+      }
       saveGame(game);
     },
 
-    dismissOffline: () => set({ offlineInfo: null }),
+    dismissOffline: () => {
+      const info = get().offlineInfo;
+      if (info && info.gained.gt(0)) {
+        get().pushLog(
+          `Offline restore complete: +${formatNumber(info.gained)} cycles`,
+          "success",
+        );
+      }
+      set({ offlineInfo: null });
+    },
 
     setView: (view) => set({ view }),
 
@@ -244,6 +360,7 @@ export const useGame = create<StoreState>((set, get) => {
 
     hardReset: () => {
       clearGame();
+      announcedMilestones.clear();
       const fresh = createInitialState();
       set({
         ...fresh,
@@ -257,12 +374,37 @@ export const useGame = create<StoreState>((set, get) => {
       saveGame(get());
     },
 
+    actImportSave: (imported) => {
+      announcedMilestones.clear();
+      for (const m of MILESTONES) {
+        if (m.check(imported)) announcedMilestones.add(m.id);
+      }
+      set({
+        ...imported,
+        booted: true,
+        lastTickAt: Date.now(),
+        offlineInfo: null,
+        toasts: [],
+        logs: greetingLogs(Date.now()),
+      });
+      saveGame(get());
+    },
+
     actBuyGenerator: (id) => {
       const game = cloneGame(get());
       const result = buyGenerator(game, id);
       commit(game);
       if (result === "locked") {
         get().pushToast("Generator not unlocked yet", "info");
+      } else if (result === "ok") {
+        const def = GENERATOR_BY_ID[id];
+        const count = game.generators[id] ?? 0;
+        if (count === 1 || count % 10 === 0) {
+          get().pushLog(
+            `Deployed ${def?.name ?? id} #${count}`,
+            count >= 10 ? "info" : "success",
+          );
+        }
       }
     },
 
@@ -271,7 +413,12 @@ export const useGame = create<StoreState>((set, get) => {
       const result = buyModule(game, id);
       commit(game);
       if (result === "ok") {
+        const def = GENERATOR_BY_ID[id];
         get().pushToast("Overclock module upgraded", "success");
+        get().pushLog(
+          `Overclocked ${def?.name ?? id} to module level ${game.modules[id] ?? 0}`,
+          "info",
+        );
       }
     },
 
@@ -279,7 +426,14 @@ export const useGame = create<StoreState>((set, get) => {
       const game = cloneGame(get());
       const result = buyUpgrade(game, id);
       commit(game);
-      if (result === "ok") get().pushToast("Optimization deployed", "success");
+      if (result === "ok") {
+        const def = UPGRADE_BY_ID[id];
+        const level = game.upgrades[id] ?? 0;
+        get().pushToast("Optimization deployed", "success");
+        if (level % 5 === 0) {
+          get().pushLog(`${def?.name ?? id} reached level ${level}`, "success");
+        }
+      }
     },
 
     actBuyResearch: (id) => {
@@ -298,6 +452,7 @@ export const useGame = create<StoreState>((set, get) => {
       commit(game);
       if (result === "ok") {
         get().pushToast(`Execution worker #${game.workers} online`, "success");
+        get().pushLog(`Execution worker #${game.workers} joined the pool`, "success");
       }
     },
 
@@ -305,7 +460,11 @@ export const useGame = create<StoreState>((set, get) => {
       const game = cloneGame(get());
       const result = buyBreakthrough(game, id);
       commit(game);
-      if (result === "ok") get().pushToast("Breakthrough applied", "success");
+      if (result === "ok") {
+        const def = BREAKTHROUGH_BY_ID[id];
+        get().pushToast("Breakthrough applied", "success");
+        get().pushLog(`Breakthrough adopted: ${def?.name ?? id}`, "success");
+      }
     },
 
     actExecuteBuild: () => {
@@ -335,6 +494,41 @@ export const useGame = create<StoreState>((set, get) => {
       const ok = buySpec(game, id);
       commit(game);
       if (ok) get().pushToast("Specialization upgraded", "success");
+    },
+
+    actStartChallenge: (id) => {
+      const game = cloneGame(get());
+      const result = startChallenge(game, id);
+      commit(game);
+      if (result === "ok") {
+        const def = CHALLENGE_BY_ID[id];
+        const name = def?.name ?? id;
+        get().pushToast(`Challenge entered: ${name}`, "info");
+        get().pushLog(`[CHALLENGE] ${name} engaged — ${def?.flaw ?? "modifiers applied"}`, "warn");
+      } else if (result === "locked") {
+        get().pushToast("Challenge locked or already running", "info");
+      }
+    },
+
+    actSolveChallenge: () => {
+      const game = cloneGame(get());
+      const reward = processSolveChallenge(game);
+      commit(game);
+      if (reward >= 0) {
+        const pct = formatPercent(reward, 0);
+        get().pushToast(`Challenge solved: +${pct} permanent production`, "success");
+        get().pushLog(
+          `[CHALLENGE] Solved. +${pct} permanent production banked.`,
+          "success",
+        );
+      }
+    },
+
+    actAbandonChallenge: () => {
+      const game = cloneGame(get());
+      const ok = abandonChallenge(game);
+      commit(game);
+      if (ok) get().pushToast("Challenge abandoned — run cleared", "info");
     },
 
     actSetAutoBuyer: (genId, patch) => {

@@ -2,6 +2,7 @@ import assert from "node:assert";
 import Decimal from "break_infinity.js";
 import { createInitialState } from "../src/game/state";
 import {
+  applyOfflineGain,
   applyProduction,
   buyGenerator,
   buyWorker,
@@ -10,6 +11,7 @@ import {
   buyBreakthrough,
   buyUpgrade,
   build,
+  buildGain,
   computeProduction,
   getRefactorGain,
   processRefactor,
@@ -17,6 +19,12 @@ import {
   workerEfficiency,
   processAutoBuyers,
   setAutoBuyer,
+  startChallenge,
+  abandonChallenge,
+  processSolveChallenge,
+  canSolveChallenge,
+  challengeRewardMultiplier,
+  getActiveChallenge,
 } from "../src/game/engine";
 import { sanitizePersisted, serializePersisted } from "../src/game/save";
 import { formatNumber, formatDuration } from "../src/game/numbers";
@@ -28,26 +36,31 @@ function ok(name: string) {
 }
 
 {
-  assert.strictEqual(createInitialState().resources.cycles.toNumber(), 15, "starter grant");
+  assert.strictEqual(createInitialState().resources.cycles.toNumber(), 0, "fresh run starts at zero");
   const s = createInitialState();
   assert.strictEqual(computeProduction(s).toNumber(), 0);
+  assert.strictEqual(buildGain(s).toNumber(), 1, "initial clicker grant");
+  for (let i = 0; i < 12; i++) build(s);
+  assert.strictEqual(s.resources.cycles.toNumber(), 12);
   assert.strictEqual(buyGenerator(s, "compileCore"), "ok");
-  assert.strictEqual(s.resources.cycles.toNumber(), 3);
+  assert.strictEqual(s.resources.cycles.toNumber(), 0);
   assert.strictEqual(computeProduction(s).toNumber(), 12);
-  ok("starter grant + first generator");
+  ok("clicker fuels the first generator");
 }
 
 {
   const s = createInitialState();
+  s.resources.cycles = new Decimal(12);
   buyGenerator(s, "compileCore");
   applyProduction(s, 100);
-  assert.strictEqual(s.resources.cycles.toNumber(), 1203);
+  assert.strictEqual(s.resources.cycles.toNumber(), 1200);
   assert.strictEqual(s.totals.runCycles.toNumber(), 1200);
   ok("production accumulates");
 }
 
 {
   const s = createInitialState();
+  s.resources.cycles = new Decimal(12);
   buyGenerator(s, "compileCore");
   applyProduction(s, 5000);
   for (let i = 0; i < 9; i++) buyGenerator(s, "compileCore");
@@ -60,6 +73,7 @@ function ok(name: string) {
 
 {
   const s = createInitialState();
+  s.resources.cycles = new Decimal(12);
   buyGenerator(s, "compileCore");
   applyProduction(s, 30);
   assert.strictEqual(buyGenerator(s, "server"), "locked");
@@ -77,6 +91,7 @@ function ok(name: string) {
 
 {
   const s = createInitialState();
+  s.resources.cycles = new Decimal(12);
   buyGenerator(s, "compileCore");
   applyProduction(s, 60);
   buyWorker(s);
@@ -87,6 +102,7 @@ function ok(name: string) {
 
 {
   const s = createInitialState();
+  s.resources.cycles = new Decimal(12);
   buyGenerator(s, "compileCore");
   applyProduction(s, 100);
   const gain = build(s);
@@ -126,6 +142,62 @@ function ok(name: string) {
 
 {
   const s = createInitialState();
+  s.prestige.refactors = 1;
+  assert.strictEqual(startChallenge(s, "unknown"), "locked", "unknown challenge id");
+  assert.strictEqual(startChallenge(s, "throttle"), "locked", "needs 7 refactors");
+  assert.strictEqual(startChallenge(s, "blackout"), "ok");
+  assert.strictEqual(getActiveChallenge(s)?.id, "blackout");
+  assert.strictEqual(startChallenge(s, "baremetal"), "locked", "one challenge at a time");
+  assert.strictEqual(offlineEfficiency(s), 0, "blackout disables offline");
+  assert.strictEqual(getRefactorGain(s).toNumber(), 0, "no AP while challenge is active");
+  const before = s.stats.challengesCompleted ?? 0;
+  s.totals.runCycles = new Decimal(2e6);
+  assert.strictEqual(canSolveChallenge(s), true);
+  const reward = processSolveChallenge(s);
+  assert.strictEqual(reward, 0.1);
+  assert.strictEqual(s.challenges.blackout, 1);
+  assert.strictEqual(s.activeChallenge, null);
+  assert.strictEqual(s.stats.challengesCompleted, before + 1);
+  assert.ok(challengeRewardMultiplier(s).eq(1.1), "reward multiplier banks permanently");
+  ok("challenge lifecycle: enter, solve, reward");
+}
+
+{
+  const s = createInitialState();
+  s.prestige.refactors = 5;
+  s.resources.cycles = new Decimal("1e12");
+  startChallenge(s, "baremetal");
+  assert.strictEqual(buyResearch(s, "runtime"), "locked", "research disabled in bare metal");
+  assert.strictEqual(buyBreakthrough(s, "monorepo"), "locked");
+  abandonChallenge(s);
+  assert.strictEqual(startChallenge(s, "vanilla"), "ok");
+  s.resources.cycles = new Decimal("1e12");
+  assert.strictEqual(buyResearch(s, "runtime"), "ok", "research still allowed in vanilla");
+  assert.strictEqual(buyUpgrade(s, "refine"), "locked", "upgrades disabled in vanilla");
+  abandonChallenge(s);
+  assert.strictEqual(startChallenge(s, "skeleton"), "ok");
+  s.resources.cycles = new Decimal("1e12");
+  assert.strictEqual(buyWorker(s), "locked", "workers disabled in skeleton");
+  assert.strictEqual(buyGenerator(s, "compileCore"), "ok", "generators remain buyable");
+  assert.strictEqual(startChallenge(s, "manual"), "locked", "cannot stack challenges");
+  ok("challenge modifiers gate purchases");
+}
+
+{
+  const s = createInitialState();
+  s.prestige.refactors = 1;
+  startChallenge(s, "blackout");
+  const rewardNow = challengeRewardMultiplier(s).toNumber();
+  assert.strictEqual(rewardNow, 1, "no reward before any solve");
+  assert.strictEqual(abandonChallenge(s), true);
+  assert.strictEqual(getActiveChallenge(s), null);
+  assert.strictEqual(abandonChallenge(s), false, "nothing to abandon");
+  ok("challenge abandon clears state");
+}
+
+{
+  const s = createInitialState();
+  s.resources.cycles = new Decimal(12);
   buyGenerator(s, "compileCore");
   applyProduction(s, 2000);
   assert.strictEqual(buyBreakthrough(s, "monorepo"), "locked", "needs compiler research");
@@ -141,6 +213,7 @@ function ok(name: string) {
 {
   const s = createInitialState();
   assert.strictEqual(buyUpgrade(s, "refine"), "locked", "needs runtime research");
+  s.resources.cycles = new Decimal(12);
   buyGenerator(s, "compileCore");
   applyProduction(s, 1000);
   buyResearch(s, "runtime");
@@ -152,6 +225,7 @@ function ok(name: string) {
 
 {
   const s = createInitialState();
+  s.resources.cycles = new Decimal(12);
   buyGenerator(s, "compileCore");
   applyProduction(s, 60);
   const balanceBefore = s.resources.cycles.toNumber();
@@ -168,10 +242,24 @@ function ok(name: string) {
   good.generators.compileCore = 3;
   good.workers = 2;
   good.resources.cycles = new Decimal("5e12");
+  good.stats.purchases = 42;
+  good.stats.autoPurchases = 9;
+  good.stats.offlineCycles = new Decimal("123e6");
+  good.stats.peakProduction = new Decimal("7e9");
+  good.stats.challengesCompleted = 4;
+  good.challenges = { blackout: 2, throttle: 1 };
+  good.activeChallenge = "blackout";
   const roundtrip = sanitizePersisted(serializePersisted(good));
   assert.strictEqual(roundtrip.generators.compileCore, 3);
   assert.strictEqual(roundtrip.workers, 2);
   assert.strictEqual(roundtrip.resources.cycles.toNumber(), 5e12);
+  assert.strictEqual(roundtrip.stats.purchases, 42);
+  assert.strictEqual(roundtrip.stats.autoPurchases, 9);
+  assert.strictEqual(roundtrip.stats.offlineCycles.toNumber(), 123e6);
+  assert.strictEqual(roundtrip.stats.peakProduction.toNumber(), 7e9);
+  assert.strictEqual(roundtrip.stats.challengesCompleted, 4);
+  assert.deepStrictEqual(roundtrip.challenges, { blackout: 2, throttle: 1 });
+  assert.strictEqual(roundtrip.activeChallenge, "blackout");
   ok("save roundtrip");
 }
 
@@ -181,6 +269,8 @@ function ok(name: string) {
     generators: { compileCore: -5, cpu: "x" },
     workers: Infinity,
     prestige: { architecturePoints: -3, refactors: "a", specs: {} },
+    challenges: { blackout: -1, bogus: 9 },
+    activeChallenge: "nonexistent-challenge",
   });
   assert.strictEqual(corrupted.resources.cycles.sign(), 0);
   assert.strictEqual(corrupted.generators.compileCore ?? 0, 0);
@@ -189,11 +279,15 @@ function ok(name: string) {
   assert.strictEqual(corrupted.prestige.architecturePoints, 0);
   assert.strictEqual(corrupted.prestige.specs.performance, 0);
   assert.deepStrictEqual(corrupted.autoBuyers, {});
+  assert.deepStrictEqual(corrupted.challenges, {});
+  assert.strictEqual(corrupted.activeChallenge, null);
+  assert.strictEqual(corrupted.stats.challengesCompleted, 0);
   ok("sanitization handles corrupt data");
 }
 
 {
   const s = createInitialState();
+  s.resources.cycles = new Decimal(12);
   buyGenerator(s, "compileCore");
   applyProduction(s, 3600);
   assert.strictEqual(s.totals.lifetimeCycles.toNumber(), 12 * 3600);
@@ -205,6 +299,54 @@ function ok(name: string) {
   assert.strictEqual(formatDuration(3 * 86400 + 7200), "3d 2h");
   assert.strictEqual(formatDuration(61), "1m 1s");
   ok("formatting helpers");
+}
+
+{
+  const s = createInitialState();
+  s.resources.cycles = new Decimal("1e9");
+  buyGenerator(s, "compileCore");
+  buyGenerator(s, "compileCore");
+  assert.strictEqual(s.stats.purchases, 2);
+  applyOfflineGain(s, new Decimal(500));
+  assert.strictEqual(s.stats.offlineCycles.toNumber(), 500);
+  setAutoBuyer(s, "compileCore", { interval: 100, budget: 50 });
+  setAutoBuyer(s, "compileCore", { enabled: true });
+  const bought = processAutoBuyers(s, 1000);
+  assert.ok(bought >= 1, `autobuy should purchase (${bought})`);
+  assert.strictEqual(s.stats.autoPurchases, bought);
+  ok("stat tracking (purchases/auto/offline)");
+}
+
+{
+  const s = createInitialState();
+  s.resources.cycles = new Decimal("1e30");
+  const chain = ["runtime", "compiler", "server", "gpu", "db", "mesh", "canary"];
+  for (const id of chain) {
+    assert.strictEqual(buyResearch(s, id), "ok", `research ${id}`);
+  }
+  assert.strictEqual(buyResearch(s, "canary"), "locked", "no double purchase");
+  assert.strictEqual(buyBreakthrough(s, "rollout"), "ok");
+  assert.strictEqual(buyBreakthrough(s, "predict"), "locked", "predict needs telemetry");
+  buyResearch(s, "telemetry");
+  assert.strictEqual(buyBreakthrough(s, "predict"), "ok");
+  ok("late research tier + breakthrough unlocks");
+}
+
+{
+  const s = createInitialState();
+  s.resources.cycles = new Decimal(12);
+  assert.strictEqual(computeProduction(s).toNumber(), 0);
+  buyGenerator(s, "compileCore");
+  applyOfflineGain(s, new Decimal(0)); // zero offline gains are inert
+  assert.strictEqual(s.stats.offlineCycles.toNumber(), 0);
+  ok("offline stat ignores zero gains");
+}
+
+{
+  assert.strictEqual(formatNumber(new Decimal(999960)), "1.00M", "thousand boundary rolls over");
+  assert.strictEqual(formatNumber(new Decimal(999900)), "999.9K", "below boundary stays in group");
+  assert.strictEqual(formatNumber(new Decimal(9999500)), "10.00M", "large boundary rolls over");
+  ok("formatNumber suffix rollover at boundaries");
 }
 
 console.log(`\nAll ${passed} engine checks passed.`);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useGame } from "@/game/store";
-import { computeProduction, getRefactorGain } from "@/game/engine";
+import { computeProduction, getActiveChallenge, getRefactorGain } from "@/game/engine";
 import { getScaleTier } from "@/game/economy";
 import { formatNumber, formatRate } from "@/game/numbers";
 import { cn } from "@/lib/cn";
@@ -15,6 +15,7 @@ export function Header() {
   const research = Object.values(state.research).filter(Boolean).length;
   const runtime = state.stats.runtimeSeconds ?? 0;
   const canRefactor = getRefactorGain(state).gt(0);
+  const activeChallenge = getActiveChallenge(state);
 
   const hours = Math.floor(runtime / 3600);
   const minutes = Math.floor((runtime % 3600) / 60);
@@ -32,7 +33,8 @@ export function Header() {
       <div className="flex items-center gap-2 font-mono">
         <span className="text-[9px] uppercase tracking-[0.2em] text-muted">Phase</span>
         <span
-          className="text-xs font-semibold tracking-wide"
+          key={tier.name}
+          className="anim-tier-pulse inline-block rounded-sm px-1 text-xs font-semibold tracking-wide"
           style={{ color: tier.accent }}
         >
           {tier.name}
@@ -67,6 +69,19 @@ export function Header() {
       </dl>
 
       <div className="flex-1" />
+
+      {activeChallenge && (
+        <button
+          type="button"
+          onClick={() => useGame.getState().setView("challenges")}
+          className={cn(
+            "inline-flex items-center gap-2 rounded-sm border border-err/50 bg-err/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-err transition-colors hover:bg-err/20",
+          )}
+        >
+          <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-err" />
+          {activeChallenge.name}
+        </button>
+      )}
 
       {canRefactor && (
         <button

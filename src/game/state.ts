@@ -1,13 +1,13 @@
 import Decimal from "break_infinity.js";
 import type { GameState } from "./types";
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export function createInitialState(): GameState {
   return {
     saveVersion: SAVE_VERSION,
     lastSave: Date.now(),
-    resources: { cycles: new Decimal(15) },
+    resources: { cycles: new Decimal(0) },
     totals: {
       runCycles: new Decimal(0),
       lifetimeCycles: new Decimal(0),
@@ -20,6 +20,8 @@ export function createInitialState(): GameState {
     breakthroughs: {},
     workers: 0,
     autoBuyers: {},
+    challenges: {},
+    activeChallenge: null,
     prestige: {
       architecturePoints: 0,
       refactors: 0,
@@ -32,6 +34,11 @@ export function createInitialState(): GameState {
     stats: {
       clicks: 0,
       runtimeSeconds: 0,
+      purchases: 0,
+      autoPurchases: 0,
+      offlineCycles: new Decimal(0),
+      peakProduction: new Decimal(0),
+      challengesCompleted: 0,
     },
     settings: {
       logLevel: "normal",

@@ -23,10 +23,13 @@
 - **Cycles** are the primary resource. You produce them per second (`1.25K`, `8.42M`, `91.3B`…) and spend them on generators, upgrades and research.
 - **10 procedural generators**, from *Compile Core* to *Inference Cluster* (CPU, Build Server, GPU Array, Sharded Database, API Gateway, Cluster Orchestrator, Regional Datacenter, Cloud Region…). Costs and production grow exponentially with level.
 - **Repeatable upgrades** (Optimization Stack, PGO Compiler, Prefetch, Speculative Branch toggles…) and **one-time breakthroughs** (Monorepo, Edge Gateways, Serverless Fabric…) multiply production.
-- **Research tree** (~25 nodes) unlocks multipliers, workers, servers, autoscaling and offline-efficiency bonuses.
+- **Research tree** (~33 nodes) unlocks multipliers, workers, servers, autoscaling and offline-efficiency bonuses.
 - **Workers** give +10% production each; **auto-buyers** (autopilot) automate generator purchases once the *Autoscale* research is unlocked.
 - **Manual deploy** button: clicking executes a build, instantly banking `production × 5` cycles (further multiplied by click-related research).
+- **Metrics panel**: a dedicated telemetry view with production composition by generator, a live multiplier stack (upgrades/breakthroughs/research/workers/architecture), lifetime stats (peak throughput, deploys, offline cycles earned) and a refactor-projection forecast.
+- **Event-driven system log**: generator deploys, overclocks, worker joins, breakthroughs, upgrade milestones and offline restores are all streamed to a log that shifts tone as you scale tiers.
 - **Refactor (prestige)**: past `1M` run cycles you can reset current infrastructure to gain **Architecture Points**, then specialize into **Performance**, **Reliability** or **Automation** for permanent, compounding bonuses.
+- **Challenges (procedural meta-progression)**: 7 unlockable protocols (`Blackout`, `Bare Metal`, `Zero-Dependency Build`, `Skeleton Crew`, `No Magic`, `Manual Labor`, `Thermal Throttle`) each apply a handicap — no offline, no research, no upgrades, no workers, no breakthroughs, no automation, or halved throughput — until the run hits a target. Clearing a tier banks a permanent, across-run production bonus; tiers scale procedurally forever and rewards never reset.
 - **Offline progress**: closing the tab pays off — production accrues while you're away, and a modal reports exactly what you earned.
 - **Milestones & scale tiers**: milestones mark progression thresholds; your "workstation" designations evolve from *Developer Workstation* up to *Distributed Intelligence*.
 
@@ -53,13 +56,13 @@ The main design rule (from `AGENTS.md`) is: **game logic lives outside the React
 
 ### Game engine (`src/game`)
 
-- `types.ts` — shared types (`GameState`, `GeneratorDef`, `ResearchDef`, …).
-- `economy.ts` — **data, not logic**: generator/research/upgrade/milestone definitions and cost curves.
-- `engine.ts` — **pure functions** with no React/Zustand coupling: `computeProduction`, `buyGenerator`, `buyResearch`, `processAutoBuyers`, `computeOfflineGain`, `processRefactor`, `getNextMilestone`, …
+- `types.ts` — shared types (`GameState`, `GeneratorDef`, `ResearchDef`, `ChallengeDef`, …).
+- `economy.ts` — **data, not logic**: generator/research/upgrade/challenge/milestone definitions and cost curves.
+- `engine.ts` — **pure functions** with no React/Zustand coupling: `computeProduction`, `buyGenerator`, `buyResearch`, `processAutoBuyers`, `computeOfflineGain`, `processRefactor`, `startChallenge`, `processSolveChallenge`, `getNextMilestone`, …
 - `numbers.ts` — formatting (suffixed `K/M/B/T/Qa…`) and Decimal helpers.
-- `save.ts` — serialization, versioned schema (`saveVersion: 1`) and defensive sanitization (rejects `NaN`/`Infinity`/negative values and incompatible shapes).
-- `state.ts` — `createInitialState()` — the fresh-game state (including a small starter grant so the first generator is immediately reachable).
-- `store.ts` — the Zustand bridge. Thin actions (`actBuyGenerator`, `actRefactor`, …) call pure engine functions, then commit results **preserving volatile UI state** (view, logs, toasts). This keeps every mutation testable.
+- `save.ts` — serialization, versioned schema (`saveVersion: 2`) and defensive sanitization (rejects `NaN`/`Infinity`/negative values and incompatible shapes).
+- `state.ts` — `createInitialState()` — the fresh-game state. Runs start at zero cycles; the manual **Execute build** clicker (`+1` base gain) funds the first Compile Core.
+- `store.ts` — the Zustand bridge. Thin actions (`actBuyGenerator`, `actRefactor`, `actStartChallenge`, …) call pure engine functions, then commit results **preserving volatile UI state** (view, logs, toasts). This keeps every mutation testable.
 
 ### Game loop
 
@@ -70,9 +73,9 @@ The main design rule (from `AGENTS.md`) is: **game logic lives outside the React
 
 ### UI (`src/components`)
 
-- `ui.tsx` — small primitives (`Button`, `Card`, `Section`, `Stat`, `Badge`, `Bar`, `ProgressTo`).
+- `ui.tsx` — small primitives (`Button`, `Card`, `Section`, `Stat`, `Badge`, `Bar`, `LockHint`, `Money`).
 - `layout/` — `Header` (production, sessions), `Sidebar` (navigation), `LogPanel` (cosmetic system log), `Toasts` (feedback), `OfflineModal`.
-- `views/` — `Overview`, `Compute`, `Automation`, `Research`, `Upgrades`, `Refactor` screens.
+- `views/` — `Overview`, `Compute`, `Automation`, `Research`, `Upgrades`, `Challenges`, `Metrics`, `Refactor` screens.
 - `game/` — `GeneratorCard` (reused by Compute + Automation).
 
 ### Project structure
@@ -84,7 +87,7 @@ src/
 │   ├── GameShell.tsx    # Boot splash + top-level layout
 │   ├── game/            # GeneratorCard
 │   ├── layout/          # Header, Sidebar, LogPanel, Toasts, OfflineModal
-│   ├── views/           # Overview, Compute, Automation, Research, Upgrades, Refactor
+│   ├── views/           # Overview, Compute, Automation, Research, Upgrades, Challenges, Metrics, Refactor
 │   └── ui.tsx           # Shared primitives
 ├── game/
 │   ├── types.ts         # Shared types
@@ -96,7 +99,7 @@ src/
 │   └── store.ts         # Zustand store / game loop / actions
 └── lib/cn.ts            # classnames helper
 scripts/
-├── smoke.ts             # Engine tests (14 checks)
+├── smoke.ts             # Engine tests (20 checks)
 └── store-smoke.ts       # Store tests (boot, tick, offline, hard reset)
 ```
 
@@ -127,7 +130,7 @@ Open [http://localhost:3000](http://localhost:3000).
 ### Run the tests
 
 ```bash
-npm test            # engine (14 checks) + store (4 checks)
+npm test            # engine (20 checks) + store (5 checks)
 npm run test:engine
 npm run test:store
 ```
@@ -159,6 +162,7 @@ Because balance data lives in `economy.ts` and logic in `engine.ts`, tuning is s
 - **New research** — add a `ResearchDef`; keep the tree acyclic via `prereq`.
 - **New milestone / scale tier** — extend `MILESTONES` / `SCALE_TIERS`.
 - **Refactor curve** — `getRefactorGain`/`processRefactor` in `engine.ts` and `specCost` in `economy.ts`.
+- **New challenge** — add a `ChallengeDef` to `CHALLENGES` (pick a `ChallengeModifier`); targets/rewards scale from `targetBase`/`targetGrowth`/`rewardPerTier`.
 
 After editing, run `npm test` to make sure nothing regressed.
 
@@ -169,9 +173,18 @@ After editing, run `npm test` to make sure nothing regressed.
 Development follows the phases in `AGENTS.md`. Currently complete:
 
 - [x] **Phase 1** — layout, core resource, automatic production, upgrades, local save, offline progress.
-- [ ] **Phase 2** — deeper research tree & unlocks, richer logs, metrics/analytics panels.
-- [ ] **Phase 3** — prestige meta-progression, specializations, procedural challenge systems.
-- [ ] **Phase 4** — balance, polish, subtle animations, UX and performance optimization.
+- [x] **Phase 2** — deeper research tree & unlocks, richer logs, metrics/analytics panels.
+- [x] **Phase 3** — prestige meta-progression, specializations, procedural challenge systems.
+- [x] **Phase 4** — balance fixes (suffix rollover, chart overflow), milestone-completion feedback, floating feedback on manual builds, subtle tier-change animations, save export/import, perf hardening (logout/render path tweaks).
+
+### Phase 4 polish notes
+
+- Suffix formatting now rolls `999.95K → 1.00M` instead of showing `1000.0K`.
+- The live throughput chart uses Decimal-safe log scaling, so it keeps painting even at absurd production values.
+- Reaching a milestone pops a toast and logs it (`[MILESTONE] …`).
+- Manual builds spawn a small floating `+N cycles` indicator.
+- Crossing a scale tier (e.g. *Server Farm* → *Compute Cluster*) pulses the designation in the header and overview.
+- The Refactor **Danger zone** gained **Export / Import save** (JSON archive) so progress can be backed up or moved between browsers.
 
 ---
 

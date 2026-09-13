@@ -9,7 +9,7 @@ import {
   upgradeCost,
   researchCost,
 } from "@/game/economy";
-import { getRefactorGain } from "@/game/engine";
+import { getRefactorGain, canSolveChallenge } from "@/game/engine";
 import type { ViewId } from "@/game/types";
 import { cn } from "@/lib/cn";
 
@@ -19,6 +19,8 @@ const NAV: Array<{ id: ViewId; glyph: string; label: string }> = [
   { id: "automation", glyph: "⬡", label: "Automation" },
   { id: "research", glyph: "≋", label: "Research" },
   { id: "upgrades", glyph: "▲", label: "Upgrades" },
+  { id: "challenges", glyph: "⚠", label: "Challenges" },
+  { id: "metrics", glyph: "▤", label: "Metrics" },
   { id: "refactor", glyph: "◇", label: "Refactor" },
 ];
 
@@ -37,6 +39,7 @@ export function Sidebar() {
   ).length;
 
   const canRefactor = getRefactorGain(state).gt(0);
+  const challengeReady = canSolveChallenge(state);
   const ap = state.prestige.architecturePoints ?? 0;
 
   return (
@@ -53,6 +56,9 @@ export function Sidebar() {
           }
           if (item.id === "refactor" && canRefactor) {
             badge = <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-amb" />;
+          }
+          if (item.id === "challenges" && challengeReady) {
+            badge = <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-err" />;
           }
           return (
             <button

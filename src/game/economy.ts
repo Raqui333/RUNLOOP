@@ -1,6 +1,7 @@
 import Decimal from "break_infinity.js";
 import type {
   BreakthroughDef,
+  ChallengeDef,
   GeneratorDef,
   MilestoneDef,
   ResearchDef,
@@ -354,6 +355,51 @@ export const RESEARCH: ResearchDef[] = [
     prereq: "inference",
     effect: { type: "prodMul", value: 3.0 },
   },
+  {
+    id: "canary",
+    name: "Canary Deploys",
+    description: "New code rolls out to one node at a time. +100% total production.",
+    cost: 5000000000,
+    tier: 6,
+    prereq: "mesh",
+    effect: { type: "prodMul", value: 1.0 },
+  },
+  {
+    id: "shard",
+    name: "Dynamic Sharding",
+    description: "Data splits across nodes on the fly. +120% total production.",
+    cost: 700000000000,
+    tier: 7,
+    prereq: "agents",
+    effect: { type: "prodMul", value: 1.2 },
+  },
+  {
+    id: "telemetry",
+    name: "Real-Time Telemetry",
+    description: "Every subsystem reports live. +150% total production.",
+    cost: 60000000000000,
+    tier: 8,
+    prereq: "canary",
+    effect: { type: "prodMul", value: 1.5 },
+  },
+  {
+    id: "fleet",
+    name: "Split-Brain Tolerance",
+    description: "The fleet agrees without a master. +200% total production.",
+    cost: 8000000000000000,
+    tier: 9,
+    prereq: "shard",
+    effect: { type: "prodMul", value: 2.0 },
+  },
+  {
+    id: "optimizer",
+    name: "Meta-Optimizer",
+    description: "Optimizes the optimizers. +250% total production.",
+    cost: 40000000000000000000,
+    tier: 10,
+    prereq: "autonomous",
+    effect: { type: "prodMul", value: 2.5 },
+  },
 ];
 
 export const RESEARCH_BY_ID: Record<string, ResearchDef> = Object.fromEntries(
@@ -491,6 +537,24 @@ export const BREAKTHROUGHS: BreakthroughDef[] = [
     prodMul: 4.0,
     badge: "NN",
   },
+  {
+    id: "rollout",
+    name: "Zero-Downtime Rollouts",
+    description: "Deploy without ever taking the stack offline. +250% production.",
+    cost: 80000000000,
+    unlockResearch: "canary",
+    prodMul: 2.5,
+    badge: "ZDR",
+  },
+  {
+    id: "predict",
+    name: "Predictive Telemetry",
+    description: "The system forecasts load before it arrives. +350% production.",
+    cost: 6000000000000000,
+    unlockResearch: "telemetry",
+    prodMul: 3.5,
+    badge: "PTL",
+  },
 ];
 
 export const BREAKTHROUGH_BY_ID: Record<string, BreakthroughDef> = Object.fromEntries(
@@ -520,6 +584,97 @@ export const SPECS: SpecDef[] = [
 
 export const SPEC_BY_ID: Record<string, SpecDef> = Object.fromEntries(
   SPECS.map((s) => [s.id, s]),
+);
+
+export const CHALLENGES: ChallengeDef[] = [
+  {
+    id: "blackout",
+    name: "Blackout Protocol",
+    badge: "DWN",
+    description: "Simulate total power loss at idle. The fleet sleeps the moment you look away.",
+    flaw: "No offline production while active",
+    unlockRefactors: 1,
+    targetBase: 2e6,
+    targetGrowth: 25,
+    rewardPerTier: 0.1,
+    modifier: { offlineMul: 0 },
+  },
+  {
+    id: "baremetal",
+    name: "Bare Metal",
+    badge: "BMR",
+    description: "No research, no abstractions. The system runs on raw silicon intent.",
+    flaw: "Research is disabled while active",
+    unlockRefactors: 1,
+    targetBase: 4e6,
+    targetGrowth: 30,
+    rewardPerTier: 0.15,
+    modifier: { disableResearch: true },
+  },
+  {
+    id: "vanilla",
+    name: "Zero-Dependency Build",
+    badge: "ZDB",
+    description: "Every optimization library is stripped from the dependency tree.",
+    flaw: "Upgrades are disabled while active",
+    unlockRefactors: 1,
+    targetBase: 8e6,
+    targetGrowth: 40,
+    rewardPerTier: 0.2,
+    modifier: { disableUpgrades: true },
+  },
+  {
+    id: "skeleton",
+    name: "Skeleton Crew",
+    badge: "SKL",
+    description: "Execute everything with a single, exhausted senior engineer.",
+    flaw: "Workers are disabled while active",
+    unlockRefactors: 2,
+    targetBase: 2e7,
+    targetGrowth: 50,
+    rewardPerTier: 0.2,
+    modifier: { disableWorkers: true },
+  },
+  {
+    id: "nomagic",
+    name: "No Magic",
+    badge: "NMG",
+    description: "Ban the pattern libraries. Everything ships bespoke and hand-rolled.",
+    flaw: "Breakthroughs are disabled while active",
+    unlockRefactors: 3,
+    targetBase: 6e7,
+    targetGrowth: 60,
+    rewardPerTier: 0.25,
+    modifier: { disableBreakthroughs: true },
+  },
+  {
+    id: "manual",
+    name: "Manual Labor",
+    badge: "MTL",
+    description: "Automation is unlawful. Every deploy is a hand-cranked ceremony.",
+    flaw: "Auto-buyers and manual builds are disabled while active",
+    unlockRefactors: 5,
+    targetBase: 2e8,
+    targetGrowth: 75,
+    rewardPerTier: 0.3,
+    modifier: { disableAutobuy: true, clickMul: 0 },
+  },
+  {
+    id: "throttle",
+    name: "Thermal Throttle",
+    badge: "THR",
+    description: "Radiators fail at half duty cycle. Throughput collapses.",
+    flaw: "Total production is halved while active",
+    unlockRefactors: 7,
+    targetBase: 1e9,
+    targetGrowth: 90,
+    rewardPerTier: 0.35,
+    modifier: { prodMul: 0.5 },
+  },
+];
+
+export const CHALLENGE_BY_ID: Record<string, ChallengeDef> = Object.fromEntries(
+  CHALLENGES.map((c) => [c.id, c]),
 );
 
 export const TEXT_CYCLES = "cycles";
@@ -635,6 +790,24 @@ export const MILESTONES: MilestoneDef[] = [
     description: "Execute 100 manual builds.",
     check: (s) => s.totals.builds >= 100,
   },
+  {
+    id: "canary",
+    label: "Canary Live",
+    description: "Complete Canary Deploys research.",
+    check: (s) => !!s.research.canary,
+  },
+  {
+    id: "metaopt",
+    label: "Meta-Optimizer",
+    description: "Reach the tip of the research tree.",
+    check: (s) => !!s.research.optimizer,
+  },
+  {
+    id: "deploy1000",
+    label: "Orchestration Overload",
+    description: "Own 1000 total systems.",
+    check: (s) => totalGeneratorCount(s) >= 1000,
+  },
 ];
 
 export const SCALE_TIERS: ScaleTierDef[] = [
@@ -685,6 +858,10 @@ export function isResearchAvailable(state: GameState, def: ResearchDef): boolean
 
 export function isSpecUnlocked(state: GameState): boolean {
   return state.prestige.refactors >= 1 || state.totals.runCycles.gte(REFACTOR_THRESHOLD);
+}
+
+export function isChallengeUnlocked(state: GameState, def: ChallengeDef): boolean {
+  return state.prestige.refactors >= def.unlockRefactors;
 }
 
 export function generatorCost(gen: GeneratorDef, count: number): Decimal {

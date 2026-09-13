@@ -1,6 +1,7 @@
 import type { GameState, PersistedGame } from "./types";
 import { createInitialState, SAVE_VERSION } from "./state";
 import { safeDecimal } from "./numbers";
+import { CHALLENGE_BY_ID } from "./economy";
 
 export const SAVE_KEY = "infra-exponent-save-v1";
 
@@ -48,6 +49,18 @@ function sanitizeAutoBuyers(value: unknown): GameState["autoBuyers"] {
   return out;
 }
 
+function sanitizeChallenges(value: unknown): GameState["challenges"] {
+  const out: GameState["challenges"] = {};
+  if (!value || typeof value !== "object") return out;
+  for (const [key, v] of Object.entries(value)) {
+    if (!CHALLENGE_BY_ID[key]) continue;
+    if (typeof v === "number" && Number.isFinite(v) && v >= 0) {
+      out[key] = Math.floor(v);
+    }
+  }
+  return out;
+}
+
 export function sanitizePersisted(raw: unknown): GameState {
   const base = createInitialState();
   if (!raw || typeof raw !== "object") return base;
@@ -81,6 +94,11 @@ export function sanitizePersisted(raw: unknown): GameState {
     breakthroughs: recordOfBooleans(r.breakthroughs),
     workers: int(r.workers, 0),
     autoBuyers: sanitizeAutoBuyers(r.autoBuyers),
+    challenges: sanitizeChallenges(r.challenges),
+    activeChallenge:
+      typeof r.activeChallenge === "string" && CHALLENGE_BY_ID[r.activeChallenge]
+        ? r.activeChallenge
+        : null,
     prestige: {
       architecturePoints: int(prestige.architecturePoints, 0),
       refactors: int(prestige.refactors, 0),
@@ -93,6 +111,11 @@ export function sanitizePersisted(raw: unknown): GameState {
     stats: {
       clicks: int(stats.clicks, 0),
       runtimeSeconds: int(stats.runtimeSeconds, 0),
+      purchases: int(stats.purchases, 0),
+      autoPurchases: int(stats.autoPurchases, 0),
+      offlineCycles: safeDecimal(stats.offlineCycles, 0),
+      peakProduction: safeDecimal(stats.peakProduction, 0),
+      challengesCompleted: int(stats.challengesCompleted, 0),
     },
     settings: {
       logLevel: settings.logLevel === "detailed" ? "detailed" : "normal",
@@ -119,6 +142,8 @@ export function serializePersisted(state: GameState): PersistedGame {
     breakthroughs: { ...state.breakthroughs },
     workers: state.workers,
     autoBuyers: state.autoBuyers,
+    challenges: { ...state.challenges },
+    activeChallenge: state.activeChallenge,
     prestige: {
       architecturePoints: state.prestige.architecturePoints,
       refactors: state.prestige.refactors,
@@ -127,6 +152,11 @@ export function serializePersisted(state: GameState): PersistedGame {
     stats: {
       clicks: state.stats.clicks,
       runtimeSeconds: state.stats.runtimeSeconds,
+      purchases: state.stats.purchases,
+      autoPurchases: state.stats.autoPurchases,
+      offlineCycles: state.stats.offlineCycles.toString(),
+      peakProduction: state.stats.peakProduction.toString(),
+      challengesCompleted: state.stats.challengesCompleted,
     },
     settings: {
       logLevel: state.settings.logLevel,
@@ -167,4 +197,16 @@ export function clearGame(): void {
 
 export function exportSave(state: GameState): string {
   return JSON.stringify(serializePersisted(state));
+}
+
+export function importSave(raw: string): GameState | null {
+  if (typeof raw !== "string") return null;
+  const text = raw.trim();
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    return sanitizePersisted(parsed);
+  } catch {
+    return null;
+  }
 }

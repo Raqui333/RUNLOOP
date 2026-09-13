@@ -72,7 +72,13 @@ export function formatNumber(value: DecimalSource, decimals = 2): string {
   const group = Math.floor(exponent / 3);
   if (group < SUFFIX_LIMIT) {
     const mantissa = d.div(Decimal.pow(10, group * 3)).toNumber();
-    return `${mantissa.toFixed(mantissa >= 100 ? 1 : decimals)}${SUFFIXES[group]}`;
+    const formatted = mantissa.toFixed(mantissa >= 100 ? 1 : decimals);
+    if (formatted.startsWith("1000")) {
+      const nextGroup = group + 1;
+      if (nextGroup >= SUFFIX_LIMIT) return d.toExponential(decimals).replace("e+", "e");
+      return `${(mantissa / 1000).toFixed(decimals)}${SUFFIXES[nextGroup]}`;
+    }
+    return `${formatted}${SUFFIXES[group]}`;
   }
   return d.toExponential(decimals).replace("e+", "e");
 }

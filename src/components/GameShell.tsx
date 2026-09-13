@@ -14,6 +14,8 @@ import { ComputeView } from "@/components/views/ComputeView";
 import { AutomationView } from "@/components/views/AutomationView";
 import { ResearchView } from "@/components/views/ResearchView";
 import { UpgradesView } from "@/components/views/UpgradesView";
+import { MetricsView } from "@/components/views/MetricsView";
+import { ChallengesView } from "@/components/views/ChallengesView";
 import { RefactorView } from "@/components/views/RefactorView";
 
 export function GameShell() {
@@ -38,6 +40,8 @@ export function GameShell() {
           {view === "automation" && <AutomationView />}
           {view === "research" && <ResearchView />}
           {view === "upgrades" && <UpgradesView />}
+          {view === "metrics" && <MetricsView />}
+          {view === "challenges" && <ChallengesView />}
           {view === "refactor" && <RefactorView />}
         </main>
       </div>

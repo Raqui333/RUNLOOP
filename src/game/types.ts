@@ -6,6 +6,8 @@ export type ViewId =
   | "automation"
   | "research"
   | "upgrades"
+  | "metrics"
+  | "challenges"
   | "refactor";
 
 export type SpecId = "performance" | "reliability" | "automation";
@@ -73,6 +75,30 @@ export interface SpecDef {
   effect: string;
 }
 
+export type ChallengeModifier = {
+  prodMul?: number;
+  clickMul?: number;
+  offlineMul?: number;
+  disableUpgrades?: boolean;
+  disableResearch?: boolean;
+  disableBreakthroughs?: boolean;
+  disableWorkers?: boolean;
+  disableAutobuy?: boolean;
+};
+
+export interface ChallengeDef {
+  id: string;
+  name: string;
+  badge: string;
+  description: string;
+  flaw: string;
+  unlockRefactors: number;
+  targetBase: number;
+  targetGrowth: number;
+  rewardPerTier: number;
+  modifier: ChallengeModifier;
+}
+
 export interface AutoBuyerState {
   enabled: boolean;
   interval: number;
@@ -122,6 +148,8 @@ export interface PersistedGame {
   breakthroughs: Record<string, boolean>;
   workers: number;
   autoBuyers: AutoBuyerMap;
+  challenges: Record<string, number>;
+  activeChallenge: string | null;
   prestige: {
     architecturePoints: number;
     refactors: number;
@@ -130,6 +158,11 @@ export interface PersistedGame {
   stats: {
     clicks: number;
     runtimeSeconds: number;
+    purchases: number;
+    autoPurchases: number;
+    offlineCycles: string;
+    peakProduction: string;
+    challengesCompleted: number;
   };
   settings: {
     logLevel: "normal" | "detailed";
@@ -152,6 +185,8 @@ export interface GameState {
   breakthroughs: Record<string, boolean>;
   workers: number;
   autoBuyers: AutoBuyerMap;
+  challenges: Record<string, number>;
+  activeChallenge: string | null;
   prestige: {
     architecturePoints: number;
     refactors: number;
@@ -160,6 +195,11 @@ export interface GameState {
   stats: {
     clicks: number;
     runtimeSeconds: number;
+    purchases: number;
+    autoPurchases: number;
+    offlineCycles: Decimal;
+    peakProduction: Decimal;
+    challengesCompleted: number;
   };
   settings: {
     logLevel: "normal" | "detailed";

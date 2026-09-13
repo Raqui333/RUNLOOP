@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { useGame } from "@/game/store";
 import {
   computeProduction,
@@ -20,39 +20,39 @@ import { formatDuration, formatNumber, formatRate } from "@/game/numbers";
 import { Button, Card, Section, Stat } from "@/components/ui";
 import { cn } from "@/lib/cn";
 
-function ProdChart() {
-  const [samples, setSamples] = useState<number[]>([0]);
+function BuildButton() {
+  const state = useGame();
+  const [floaters, setFloaters] = useState<{ id: number; text: string }[]>([]);
+  const seqRef = useRef(0);
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      const prod = computeProduction(useGame.getState()).times(1).toNumber();
-      const log = Math.log10(1 + Math.max(0, prod));
-      setSamples((prev) => [...prev.slice(-59), log]);
-    }, 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  const width = 300;
-  const height = 56;
-  if (samples.length < 2) return <div className="h-14" />;
-  const min = Math.min(...samples);
-  const max = Math.max(...samples);
-  const span = max - min || 1;
-  const step = width / (samples.length - 1);
-  const points = samples
-    .map((s, i) => `${(i * step).toFixed(1)},${(height - 4 - ((s - min) / span) * (height - 8)).toFixed(1)}`)
-    .join(" ");
+  const handleBuild = () => {
+    const gain = buildGain(state);
+    useGame.getState().actExecuteBuild();
+    if (gain.gt(0)) {
+      const id = seqRef.current++;
+      const text = `+${formatNumber(gain)}`;
+      setFloaters((prev) => [...prev.slice(-4), { id, text }]);
+      window.setTimeout(() => {
+        setFloaters((prev) => prev.filter((f) => f.id !== id));
+      }, 1100);
+    }
+  };
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="h-14 w-full" preserveAspectRatio="none">
-      <polyline
-        points={points}
-        fill="none"
-        stroke="var(--term)"
-        strokeWidth="1.5"
-        opacity="0.9"
-      />
-    </svg>
+    <div className="relative">
+      <Button variant="primary" size="lg" onClick={handleBuild}>
+        Execute build
+        <span className="text-[10px] opacity-70">+{formatNumber(buildGain(state))}</span>
+      </Button>
+      {floaters.map((f) => (
+        <span
+          key={f.id}
+          className="anim-float-up pointer-events-none absolute -top-1 right-2 font-mono text-xs text-term"
+        >
+          {f.text}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -78,7 +78,8 @@ export function OverviewView() {
               System designation
             </div>
             <div
-              className="mt-1 text-2xl font-semibold tracking-tight"
+              key={tier.name}
+              className="anim-tier-pulse mt-1 inline-block rounded-sm px-1 text-2xl font-semibold tracking-tight"
               style={{ color: tier.accent }}
             >
               {tier.name}
@@ -104,22 +105,7 @@ export function OverviewView() {
               </div>
             </div>
           </div>
-          <Button
-            variant="primary"
-            size="lg"
-            onClick={() => useGame.getState().actExecuteBuild()}
-          >
-            Execute build
-            <span className="text-[10px] opacity-70">+{formatNumber(buildGain(state))}</span>
-          </Button>
-        </div>
-
-        <div className="mt-5">
-          <div className="mb-1 flex justify-between text-[10px] uppercase tracking-widest text-muted">
-            <span>Payload growth</span>
-            <span className="text-term">{formatRate(production)}</span>
-          </div>
-          <ProdChart />
+          <BuildButton />
         </div>
       </section>
 

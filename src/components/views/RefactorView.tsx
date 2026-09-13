@@ -2,9 +2,16 @@
 
 import { useState } from "react";
 import { useGame } from "@/game/store";
-import { SPECS, specCost, REFACTOR_THRESHOLD } from "@/game/economy";
-import { computeProduction, getRefactorGain, offlineEfficiency, automationSpeed } from "@/game/engine";
+import { SPECS, specCost, REFACTOR_THRESHOLD, CHALLENGE_BY_ID } from "@/game/economy";
+import {
+  computeProduction,
+  getActiveChallenge,
+  getRefactorGain,
+  offlineEfficiency,
+  automationSpeed,
+} from "@/game/engine";
 import { formatNumber, formatRate, formatPercent } from "@/game/numbers";
+import { exportSave, importSave } from "@/game/save";
 import { Badge, Bar, Button, Card, Section } from "@/components/ui";
 import type { SpecDef } from "@/game/types";
 
@@ -41,18 +48,60 @@ export function RefactorView() {
   const state = useGame();
   const [confirming, setConfirming] = useState(false);
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
 
   const run = state.totals.runCycles;
   const production = computeProduction(state);
   const gain = getRefactorGain(state);
+  const active = getActiveChallenge(state);
   const canRefactor = gain.gt(0);
   const progress = run.div(REFACTOR_THRESHOLD).toNumber();
   const ap = state.prestige.architecturePoints;
 
   const specSum = SPECS.reduce((a, s) => a + (state.prestige.specs[s.id] ?? 0), 0);
 
+  const handleExport = async () => {
+    const data = exportSave(useGame.getState());
+    try {
+      await navigator.clipboard.writeText(data);
+      useGame.getState().pushToast("Save exported to clipboard", "info");
+    } catch {
+      setImportText(data);
+      setImportOpen(true);
+      useGame.getState().pushToast("Clipboard unavailable — save pasted below", "info");
+    }
+  };
+
+  const handleImport = () => {
+    const imported = importSave(importText);
+    if (!imported) {
+      useGame.getState().pushToast("Invalid save data", "error");
+      return;
+    }
+    useGame.getState().actImportSave(imported);
+    useGame.getState().pushToast("Save restored", "success");
+    setImportOpen(false);
+    setImportText("");
+  };
+
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-5">
+      {active && (
+        <div className="rounded-md border border-err/40 bg-panel px-3 py-2.5 text-[11px] text-muted">
+          Challenge <span className="text-err">{CHALLENGE_BY_ID[active.id]?.name}</span> is
+          running. Refactor is suspended until it is solved or abandoned — head to the{" "}
+          <button
+            type="button"
+            className="text-cyn underline"
+            onClick={() => useGame.getState().setView("challenges")}
+          >
+            Challenges
+          </button>{" "}
+          screen.
+        </div>
+      )}
+
       <Section title="Refactor" hint="reset the stack for permanent architecture points">
         <Card
           accent="var(--amb)"
@@ -171,31 +220,74 @@ export function RefactorView() {
       </Section>
 
       <Section title="Danger zone">
-        <div className="flex items-center justify-between rounded-md border border-err/30 bg-panel px-3 py-2.5">
-          <span className="text-[11px] text-muted">
-            Wipe local save and start from a fresh kernel. This cannot be undone.
-          </span>
-          {!confirmingReset ? (
-            <Button variant="danger" size="sm" onClick={() => setConfirmingReset(true)}>
-              Hard reset
-            </Button>
-          ) : (
-            <div className="flex gap-2">
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={() => {
-                  setConfirmingReset(false);
-                  useGame.getState().hardReset();
-                }}
-              >
-                Confirm wipe
+        <div className="flex flex-col gap-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-err/30 bg-panel px-3 py-2.5">
+            <span className="text-[11px] text-muted">
+              Wipe local save and start from a fresh kernel. This cannot be undone.
+            </span>
+            {!confirmingReset ? (
+              <Button variant="danger" size="sm" onClick={() => setConfirmingReset(true)}>
+                Hard reset
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => setConfirmingReset(false)}>
-                Cancel
-              </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => {
+                    setConfirmingReset(false);
+                    useGame.getState().hardReset();
+                  }}
+                >
+                  Confirm wipe
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setConfirmingReset(false)}>
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2 rounded-md border border-line bg-panel px-3 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="text-[11px] text-muted">
+                Back up or restore your local save (JSON archive). Import overwrites the current
+                progress.
+              </span>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" onClick={handleExport}>
+                  Export save
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setImportOpen((v) => !v)}>
+                  {importOpen ? "Close" : "Import save"}
+                </Button>
+              </div>
             </div>
-          )}
+            {importOpen && (
+              <div className="anim-fade-up flex flex-col gap-2">
+                <textarea
+                  value={importText}
+                  onChange={(e) => setImportText(e.target.value)}
+                  spellCheck={false}
+                  placeholder='Paste a RUNLOOP save archive here, e.g. {"saveVersion":2,...}'
+                  className="h-24 w-full resize-y rounded-sm border border-line bg-inset px-2 py-1.5 font-mono text-[10px] leading-relaxed text-ink outline-none focus:border-cyn/50"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    variant="cyan"
+                    size="sm"
+                    disabled={importText.trim().length === 0}
+                    onClick={handleImport}
+                  >
+                    Restore
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setImportText("")}>
+                    Clear
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </Section>
     </div>

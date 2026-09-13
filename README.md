@@ -50,6 +50,7 @@ Numbers use arbitrary-precision decimals (`break_infinity.js`), so growth can co
 | Styling          | Tailwind CSS v4 (CSS-first theme, dark "terminal" palette) |
 | State            | [zustand](https://github.com/pmndrs/zustand)        |
 | Big numbers      | [break_infinity.js](https://github.com/Patashu/break_infinity.js) |
+| Desktop wrapper  | [Electron](https://www.electronjs.org) (loads the static export) + electron-builder |
 | Tests            | `tsx` smoke scripts (engine + store), no jest dependency |
 
 ---
@@ -102,9 +103,12 @@ src/
 │   ├── state.ts         # Fresh-game state
 │   └── store.ts         # Zustand store / game loop / actions
 └── lib/cn.ts            # classnames helper
+electron/
+└── main.cjs             # Desktop shell (loads the `out/` static export)
 scripts/
 ├── smoke.ts             # Engine tests (20 checks)
-└── store-smoke.ts       # Store tests (boot, tick, offline, hard reset)
+├── store-smoke.ts       # Store tests (boot, tick, offline, hard reset)
+└── desktop-dev.mjs      # Dev harness: Next on :3200 + Electron pointing at it
 ```
 
 The tests were genuinely useful during development — they caught two real bugs: the offline calculation always seeing `elapsed = 0`, and store commits dropping volatile UI fields.
@@ -123,13 +127,58 @@ The tests were genuinely useful during development — they caught two real bugs
 npm install
 ```
 
-### Run the dev server
+### Run in the browser (dev)
 
 ```bash
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+### Run the desktop app
+
+RUNLOOP ships as an Electron desktop app. Two modes:
+
+#### 1. Desktop dev (hot-reload, DevTools attached)
+
+```bash
+npm run desktop:dev
+```
+
+This boots a Next.js dev server on port `3200` and launches an Electron window pointed at it. Override the port with `RUNLOOP_DEV_PORT` if needed:
+
+```bash
+RUNLOOP_DEV_PORT=4100 npm run desktop:dev
+```
+
+#### 2. Desktop prod (offline static build)
+
+```bash
+npm run build
+npm run desktop
+```
+
+Builds the static export to `out/`, then launches Electron loading it via the `app://` protocol — no network needed. If `out/` is missing, Electron shows an error box telling you to build first.
+
+#### 3. Desktop distribution (installer packages)
+
+```bash
+npm run dist        # package + .deb/.AppImage for Linux
+npm run dist:dir    # unpacked build only (fast iteration)
+```
+
+Packaging uses `electron-builder`.
+
+### Smoke-test the desktop shell
+
+A boot check verifies the window loads and renders `RUNLOOP` text, then exits. Works in dev mode (boot your own dev server with `RUNLOOP_DEV_URL`) or against a static build:
+
+```bash
+npm run build
+RUNLOOP_SMOKE=1 npm run desktop    # prints SMOKE OK and quits
+```
+
+Note: `npm run desktop` insists on an existing `out/` build — run `npm run build` first.
 
 ### Run the tests
 
@@ -146,14 +195,14 @@ npm run lint
 npx tsc --noEmit
 ```
 
-### Production build
+### Production build (web)
 
 ```bash
 npm run build
 npm run start
 ```
 
-The game is a static App Router page — the build output can be served by any static host (Vercel, Netlify, a CDN, `npx serve out`, …). There is **no backend**: it's a pure client-side game; progress is saved in `localStorage`.
+The game is a static App Router page — the build output can be served by any static host (Vercel, Netlify, a CDN, `npx serve out`, …). There is **no backend**: it's a pure client-side game; progress is saved in `localStorage` (the desktop app gets its own isolated profile per OS user).
 
 ---
 

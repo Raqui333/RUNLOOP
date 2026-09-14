@@ -28,11 +28,11 @@
 - **10 procedural generators**, from *Compile Core* to *Inference Cluster* (CPU, Build Server, GPU Array, Sharded Database, API Gateway, Cluster Orchestrator, Regional Datacenter, Cloud Region…). Costs and production grow exponentially with level.
 - **Repeatable upgrades** (Optimization Stack, PGO Compiler, Prefetch, Speculative Branch toggles…) and **one-time breakthroughs** (Monorepo, Edge Gateways, Serverless Fabric…) multiply production.
 - **Research tree** (~33 nodes) unlocks multipliers, workers, servers, autoscaling and offline-efficiency bonuses.
-- **Workers** give +8% production each (boosted by research); **auto-buyers** (autopilot) automate generator purchases once the *Autoscale* research is unlocked.
-- **Manual deploy** button: clicking executes a build, instantly banking `production × 4` cycles (further multiplied by click-related research).
+- **Workers** give +4% production each (boosted by research); **auto-buyers** (autopilot) automate generator purchases once the *Autoscale* research is unlocked.
+- **Manual deploy** button: clicking executes a build, banking a flat amount that scales only with your Compile Core count (plus click-related research) — it never scales with your full production multiplier.
 - **Metrics panel**: a dedicated telemetry view with production composition by generator, a live multiplier stack (upgrades/breakthroughs/research/workers/architecture), lifetime stats (peak throughput, deploys, offline cycles earned) and a refactor-projection forecast.
 - **Event-driven system log**: generator deploys, overclocks, worker joins, breakthroughs, upgrade milestones and offline restores are all streamed to a log that shifts tone as you scale tiers.
-- **Refactor (prestige)**: past `1M` run cycles you can reset current infrastructure to gain **Architecture Points**, then specialize into **Performance**, **Reliability** or **Automation** for permanent, compounding bonuses.
+- **Refactor (prestige)**: past `10M` run cycles you can reset current infrastructure to gain **Architecture Points**, then specialize into **Performance**, **Reliability** or **Automation** for permanent, compounding bonuses.
 - **Challenges (procedural meta-progression)**: 7 unlockable protocols (`Blackout`, `Bare Metal`, `Zero-Dependency Build`, `Skeleton Crew`, `No Magic`, `Manual Labor`, `Thermal Throttle`) each apply a handicap — no offline, no research, no upgrades, no workers, no breakthroughs, no automation, or halved throughput — until the run hits a target. Clearing a tier banks a permanent, across-run production bonus; tiers scale procedurally forever and rewards never reset.
 - **Offline progress**: closing the tab pays off — production accrues while you're away, and a modal reports exactly what you earned.
 - **Milestones & scale tiers**: milestones mark progression thresholds; your "workstation" designations evolve from *Developer Workstation* up to *Distributed Intelligence*.

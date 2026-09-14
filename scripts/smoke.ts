@@ -85,11 +85,11 @@ function ok(name: string) {
 
 {
   const s = createInitialState();
-  s.resources.cycles = new Decimal(2600);
+  s.resources.cycles = new Decimal(12000);
   buyGenerator(s, "compileCore");
   buyWorker(s);
-  assert.strictEqual(workerEfficiency(s), 0.08);
-  assert.ok(Math.abs(computeProduction(s).toNumber() - 4 * 1.08) < 1e-9);
+  assert.strictEqual(workerEfficiency(s), 0.06);
+  assert.ok(Math.abs(computeProduction(s).toNumber() - 4 * 1.06) < 1e-9);
   ok("worker purchase modifies production");
 }
 
@@ -107,7 +107,7 @@ function ok(name: string) {
 
 {
   const s = createInitialState();
-  s.totals.runCycles = new Decimal(2500000);
+  s.totals.runCycles = new Decimal(10000000);
   s.prestige.architecturePoints = 5;
   assert.strictEqual(getRefactorGain(s).toNumber(), 1);
   buySpec(s, "performance");
@@ -115,7 +115,7 @@ function ok(name: string) {
   assert.strictEqual(s.prestige.architecturePoints, 3);
   s.totals.runCycles = new Decimal(1e12);
   const gain = processRefactor(s);
-  const expected = Math.floor(Math.pow(400000, 0.5));
+  const expected = Math.floor(Math.pow(100000, 0.5));
   assert.strictEqual(gain.toNumber(), expected);
   assert.strictEqual(s.generators.compileCore ?? 0, 0);
   assert.strictEqual(s.resources.cycles.toNumber(), 0);
@@ -129,7 +129,7 @@ function ok(name: string) {
   const s = createInitialState();
   assert.strictEqual(offlineEfficiency(s), 1);
   s.prestige.specs.reliability = 2;
-  assert.strictEqual(offlineEfficiency(s), 1.04);
+  assert.strictEqual(offlineEfficiency(s), 1.02);
   ok("offline efficiency from reliability spec");
 }
 
@@ -192,12 +192,11 @@ function ok(name: string) {
   const s = createInitialState();
   s.resources.cycles = new Decimal(40);
   buyGenerator(s, "compileCore");
-  applyProduction(s, 2000);
+  s.resources.cycles = new Decimal(1e7);
   assert.strictEqual(buyBreakthrough(s, "monorepo"), "locked", "needs compiler research");
   buyResearch(s, "runtime");
-  applyProduction(s, 4000);
+  assert.strictEqual(buyBreakthrough(s, "monorepo"), "locked", "still needs compiler");
   buyResearch(s, "compiler");
-  applyProduction(s, 2000);
   assert.strictEqual(buyBreakthrough(s, "monorepo"), "ok");
   assert.strictEqual(buyBreakthrough(s, "monorepo"), "dup");
   ok("breakthrough gating + single-purchase");
@@ -210,7 +209,7 @@ function ok(name: string) {
   buyGenerator(s, "compileCore");
   applyProduction(s, 3000);
   buyResearch(s, "runtime");
-  applyProduction(s, 100);
+  applyProduction(s, 750);
   assert.strictEqual(buyUpgrade(s, "refine"), "ok");
   assert.strictEqual(s.upgrades.refine, 1);
   ok("repeatable upgrade purchase");

@@ -243,4 +243,4 @@ Development follows the phases in `AGENTS.md`. Currently complete:
 
 ## License
 
-Feel free to fork for your own experiments.
+Do What The Fuck you want to Public License
